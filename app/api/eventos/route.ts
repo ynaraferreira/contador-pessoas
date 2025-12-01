@@ -1,33 +1,61 @@
-import { put, list } from "@vercel/blob";
 import { NextResponse } from "next/server";
+import { put, list } from "@vercel/blob";
 
 const FILE_NAME = "eventos.json";
 
-async function loadEventos(): Promise<any[]> {
+// ------------------------------------------------------
+// LER EVENTOS
+// ------------------------------------------------------
+async function loadEventos(): Promise<
+  { ts: number; tipo: string; valor?: number }[]
+> {
   const blobs = await list();
   const existing = blobs.blobs.find(b => b.pathname === FILE_NAME);
+
+  // Se não existe arquivo, retorna lista vazia
   if (!existing) return [];
-  
-  const file = await fetch(existing.url);
-  const text = await file.text();
-  return JSON.parse(text);
+
+  const res = await fetch(existing.url);
+  const text = await res.text();
+
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : [];
+  } catch {
+    return [];
+  }
 }
 
+// ------------------------------------------------------
+// GET — retorna lista completa de eventos
+// ------------------------------------------------------
 export async function GET() {
   const eventos = await loadEventos();
+
+  // ordena por timestamp (mais antigo primeiro)
+  eventos.sort((a, b) => a.ts - b.ts);
+
   return NextResponse.json(eventos);
 }
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  
+// ------------------------------------------------------
+// POST — adiciona novo evento
+// ------------------------------------------------------
+export async function POST(request: Request) {
+  const body = await request.json();
+
+  const tipo = body.tipo ?? "evento";
+  const valor = body.valor ?? null;
+
   const eventos = await loadEventos();
+
   eventos.push({
-    tipo: body.tipo,
     ts: Date.now(),
+    tipo,
+    valor: valor ?? undefined
   });
 
-  await put(FILE_NAME, JSON.stringify(eventos), {
+  await put(FILE_NAME, JSON.stringify(eventos, null, 2), {
     contentType: "application/json",
     access: "public",
   });

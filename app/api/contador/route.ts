@@ -1,28 +1,38 @@
-import { put, list } from "@vercel/blob";
 import { NextResponse } from "next/server";
+import { put, list } from "@vercel/blob";
 
 const FILE_NAME = "contador.json";
 
-async function loadContador(): Promise<number> {
+// ---- Carrega valor atual ----
+async function loadContador() {
   const blobs = await list();
   const existing = blobs.blobs.find(b => b.pathname === FILE_NAME);
+
   if (!existing) return 0;
 
-  const file = await fetch(existing.url);
-  const text = await file.text();
-  return JSON.parse(text).contador ?? 0;
+  const res = await fetch(existing.url);
+  const text = await res.text();
+
+  try {
+    const json = JSON.parse(text);
+    return json.contador ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
+// ---- GET ----
 export async function GET() {
   const contador = await loadContador();
   return NextResponse.json({ contador });
 }
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  const novo = body.pessoas ?? 0;
+// ---- POST ----
+export async function POST(request: Request) {
+  const body = await request.json();
+  const novoValor = body.contador ?? 0;
 
-  await put(FILE_NAME, JSON.stringify({ contador: novo }), {
+  await put(FILE_NAME, JSON.stringify({ contador: novoValor }), {
     contentType: "application/json",
     access: "public",
   });
