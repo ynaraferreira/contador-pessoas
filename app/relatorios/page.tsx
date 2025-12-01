@@ -42,7 +42,11 @@ export default function RelatoriosPage() {
   const [horarioPico, setHorarioPico] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>("—");
 
-  useEffect(() => setTimeout(() => setAnimate(true), 100), []);
+useEffect(() => {
+  const t = setTimeout(() => setAnimate(true), 100);
+  return () => clearTimeout(t);
+}, []);
+
 
   // --------------------------------------
   // BUSCA OS DADOS
