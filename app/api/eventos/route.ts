@@ -1,50 +1,38 @@
-import { NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
-
 export const runtime = "nodejs";
 
-const FILE_NAME = "eventos.json";
+import { list, put } from "@vercel/blob";
+import { NextResponse } from "next/server";
 
-// ---------------------------
-// Ler eventos
-// ---------------------------
+const FILE = "eventos.json";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 async function loadEventos() {
-  const arquivos = await list({ prefix: "" });
-
-  const item = arquivos.blobs.find(b => b.pathname === FILE_NAME);
+  const arquivos = await list();
+  const item = arquivos.blobs.find((b) => b.pathname === FILE);
 
   if (!item) return [];
 
-  const res = await fetch(item.url, { cache: "no-store" });
+  const res = await fetch(item.url);
   return await res.json();
 }
 
-// ---------------------------
-// GET
-// ---------------------------
 export async function GET() {
-  try {
-    const eventos = await loadEventos();
-
-    eventos.sort((a: any, b: any) => a.ts - b.ts);
-
-    return NextResponse.json(eventos, {
-      headers: { "Cache-Control": "no-store" }
-    });
-
-  } catch (err) {
-    console.error("GET ERROR /api/eventos:", err);
-    return NextResponse.json({ error: "Erro ao ler eventos" }, { status: 500 });
-  }
+  const eventos = await loadEventos();
+  return NextResponse.json(eventos, { headers: corsHeaders });
 }
 
-// ---------------------------
-// POST
-// ---------------------------
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-
+    const body = await req.json();
     const eventos = await loadEventos();
 
     eventos.push({
@@ -54,22 +42,14 @@ export async function POST(request: Request) {
       ts: Date.now(),
     });
 
-    await put(
-      FILE_NAME,
-      JSON.stringify(eventos, null, 2),
-      {
-        access: "public",
-        contentType: "application/json"
-      }
-    );
+    await put(FILE, JSON.stringify(eventos, null, 2), {
+      access: "public",
+      contentType: "application/json",
+    });
 
-    return NextResponse.json(
-      { ok: true },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-
-  } catch (err) {
-    console.error("POST ERROR /api/eventos:", err);
-    return NextResponse.json({ error: "Erro ao salvar eventos" }, { status: 500 });
+    return NextResponse.json({ ok: true }, { headers: corsHeaders });
+  } catch (e) {
+    console.log("Erro:", e);
+    return NextResponse.json({ error: true }, { status: 500 });
   }
 }

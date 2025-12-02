@@ -18,7 +18,8 @@ export async function OPTIONS() {
 async function loadContador() {
   const arquivos = await list({ prefix: "" });
 
-  const item = arquivos.blobs.find((b) => b.pathname === FILE_NAME);
+  // 🔥 CORREÇÃO AQUI
+  const item = arquivos.blobs.find((b) => b.key === FILE_NAME);
 
   if (!item) return { pessoas: 0 };
 
