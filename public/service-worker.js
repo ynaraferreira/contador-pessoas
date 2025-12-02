@@ -1,67 +1,18 @@
-/* const CACHE_NAME = "contador-pessoas-v1";
-const URLS_TO_CACHE = [
-  "/",
-  "/manifest.json"
-];
-
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(URLS_TO_CACHE))
-  );
-});
-
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      )
-    )
-  );
-});
-
-self.addEventListener("fetch", event => {
-  const { request } = event;
-
-  // Para a API, tenta sempre rede; se falhar, devolve "0"
-  if (request.url.includes("/api/contador")) {
-    event.respondWith(
-      fetch(request).catch(() =>
-        new Response(JSON.stringify({ pessoas: 0 }), {
-          headers: { "Content-Type": "application/json" }
-        })
-      )
-    );
-    return;
-  }
-
-  // Para arquivos estáticos, cache-first
-  event.respondWith(
-    caches.match(request).then(response => {
-      return response || fetch(request);
-    })
-  );
-});
-  */
-const STATIC_CACHE = "static-v4";
-const DYNAMIC_CACHE = "dynamic-v4";
+const CACHE_VERSION = "v5";
+const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
-  "/contador",
-  "/relatorios",
   "/favicon.ico",
+  "/img/fluxuss.png",
 ];
 
 // INSTALL
-self.addEventListener("install", event => {
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => {
+    caches.open(STATIC_CACHE).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
@@ -69,13 +20,13 @@ self.addEventListener("install", event => {
 });
 
 // ACTIVATE
-self.addEventListener("activate", event => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
+    caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter(k => k !== STATIC_CACHE && k !== DYNAMIC_CACHE)
-          .map(k => caches.delete(k))
+          .filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
+          .map((key) => caches.delete(key))
       )
     )
   );
@@ -83,40 +34,53 @@ self.addEventListener("activate", event => {
 });
 
 // FETCH
-self.addEventListener("fetch", event => {
+self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // === APIs ===
+  // ============
+  // 1) NÃO CACHEAR HTML DO NEXT.JS
+  // ============
+  if (req.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(fetch(req).catch(() => caches.match("/")));
+    return;
+  }
+
+  // ============
+  // 2) APIS SEM CACHE
+  // ============
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
-      fetch(req)
-        .then(res => {
-          return res;
-        })
-        .catch(() => {
-          // Fallback para contador
-          if (url.pathname.includes("/api/contador")) {
-            return new Response(
-              JSON.stringify({ contador: 0 }),
-              { headers: { "Content-Type": "application/json" } }
-            );
-          }
-          return new Response("[]", { headers: { "Content-Type": "application/json" } });
-        })
+      fetch(req).catch(() => {
+        if (url.pathname.includes("/api/contador")) {
+          return new Response(
+            JSON.stringify({ pessoas: 0 }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response("[]", {
+          headers: { "Content-Type": "application/json" },
+        });
+      })
     );
     return;
   }
 
-  // === Páginas e assets ===
+  // ============
+  // 3) STATIC FILES → cache-first
+  // ============
   event.respondWith(
-    caches.match(req).then(cacheRes => {
+    caches.match(req).then((cacheRes) => {
       return (
         cacheRes ||
-        fetch(req).then(fetchRes => {
-          if (req.method === "GET" && fetchRes.status === 200) {
+        fetch(req).then((fetchRes) => {
+          if (
+            req.method === "GET" &&
+            fetchRes.status === 200 &&
+            !req.headers.get("accept")?.includes("text/html")
+          ) {
             const clone = fetchRes.clone();
-            caches.open(DYNAMIC_CACHE).then(cache => cache.put(req, clone));
+            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(req, clone));
           }
           return fetchRes;
         })
