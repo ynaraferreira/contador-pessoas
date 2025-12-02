@@ -26,10 +26,10 @@ ChartJS.register(
 );
 
 type Evento = {
-  tipo: "entrada" | "saida";
-  sensor: string;
-  contador: number;
-  ts: number;
+  movimento: "ENTRADA" | "SAIDA";
+  sensor: string | null;
+  valor: number;
+  criado_em: string; // ISO timestamp
 };
 
 export default function RelatoriosPage() {
@@ -42,37 +42,44 @@ export default function RelatoriosPage() {
   const [horarioPico, setHorarioPico] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>("—");
 
-useEffect(() => {
-  const t = setTimeout(() => setAnimate(true), 100);
-  return () => clearTimeout(t);
-}, []);
+  // ------------------------------
+  // Animação inicial
+  // ------------------------------
+  useEffect(() => {
+    const t = setTimeout(() => setAnimate(true), 100);
+    return () => clearTimeout(t);
+  }, []);
 
-
-  // --------------------------------------
-  // BUSCA OS DADOS
-  // --------------------------------------
+  // ------------------------------
+  // BUSCA OS EVENTOS (historico)
+  // ------------------------------
   useEffect(() => {
     async function load() {
-      const res = await fetch("/api/eventos");
+      const res = await fetch("/api/eventos", { cache: "no-store" });
       const data: Evento[] = await res.json();
+
       setEventos(data);
 
       if (data.length > 0) {
-        const ts = new Date(data[data.length - 1].ts);
-        setUltimaAtualizacao(ts.toLocaleString());
+        const last = new Date(data[0].criado_em);
+        setUltimaAtualizacao(last.toLocaleString("pt-BR"));
       }
 
       // KPIs
-      setTotalEntradas(data.filter(e => e.tipo === "entrada").length);
-      setTotalSaidas(data.filter(e => e.tipo === "saida").length);
+      const entradas = data.filter((e) => e.movimento === "ENTRADA").length;
+      const saidas = data.filter((e) => e.movimento === "SAIDA").length;
+
+      setTotalEntradas(entradas);
+      setTotalSaidas(saidas);
 
       // Ocupação máxima histórica
-      setOcupacaoMax(Math.max(...data.map(e => e.contador), 0));
+      const maxOcup = Math.max(...data.map((e) => e.valor), 0);
+      setOcupacaoMax(maxOcup);
 
       // Horário com mais movimento
       const grupos: Record<string, number> = {};
-      data.forEach(e => {
-        const h = String(new Date(e.ts).getHours()).padStart(2, "0");
+      data.forEach((e) => {
+        const h = new Date(e.criado_em).getHours();
         grupos[h] = (grupos[h] || 0) + 1;
       });
 
@@ -83,36 +90,36 @@ useEffect(() => {
     load();
   }, []);
 
-  // --------------------------------------
-  // GRÁFICO DE LINHA – OCUPAÇÃO NO TEMPO
-  // --------------------------------------
+  // ------------------------------
+  // GRÁFICO DE LINHA (OCUPAÇÃO)
+  // ------------------------------
   const lineData = {
-    labels: eventos.map(e => ""),
+    labels: eventos.map(() => ""),
     datasets: [
       {
         label: "Ocupação",
-        data: eventos.map(e => e.contador),
+        data: eventos.map((e) => e.valor),
         borderColor: "#1c3f60",
-        backgroundColor: "rgba(28, 63, 96, 0.15)",
+        backgroundColor: "rgba(28,63,96,0.15)",
         fill: true,
         tension: 0.35,
       },
     ],
   };
 
-  // --------------------------------------
-  // GRÁFICO DE BARRAS – MOVIMENTO POR HORA
-  // --------------------------------------
+  // ------------------------------
+  // GRÁFICO DE BARRAS — MOVIMENTO POR HORA
+  // ------------------------------
   const barrasPorHora = (() => {
-    const horas: Record<string, number> = {};
+    const horas: Record<number, number> = {};
 
-    eventos.forEach(e => {
-      const h = new Date(e.ts).getHours();
+    eventos.forEach((e) => {
+      const h = new Date(e.criado_em).getHours();
       horas[h] = (horas[h] || 0) + 1;
     });
 
     const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}h`);
-    const values = labels.map(l => horas[parseInt(l)] || 0);
+    const values = labels.map((_, i) => horas[i] || 0);
 
     return {
       labels,
@@ -126,13 +133,13 @@ useEffect(() => {
     };
   })();
 
-  // --------------------------------------
-  // HEATMAP SIMPLES (evento por hora)
-  // --------------------------------------
+  // ------------------------------
+  // HEATMAP POR HORA
+  // ------------------------------
   const heatmapGrid = (() => {
     const horas: Record<string, number> = {};
-    eventos.forEach(e => {
-      const h = new Date(e.ts).getHours().toString().padStart(2, "0");
+    eventos.forEach((e) => {
+      const h = String(new Date(e.criado_em).getHours()).padStart(2, "0");
       horas[h] = (horas[h] || 0) + 1;
     });
 
@@ -170,9 +177,8 @@ useEffect(() => {
           Análise completa de ocupação, fluxo e horários de pico.
         </p>
 
-        {/* ===================== KPIs ===================== */}
+        {/* KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
-
           <div className="px-4 py-3 rounded-xl shadow-sm bg-[#eef2f6] border border-[#d5dde6]">
             <p className="text-xs text-[#6b7a86]">Entradas</p>
             <p className="text-xl font-bold text-[#1c3f60]">{totalEntradas}</p>
@@ -190,9 +196,7 @@ useEffect(() => {
 
           <div className="px-4 py-3 rounded-xl shadow-sm bg-[#eef2f6] border border-[#d5dde6]">
             <p className="text-xs text-[#6b7a86]">Pico</p>
-            <p className="text-xl font-bold text-[#1c3f60]">
-              {horarioPico ?? "—"}
-            </p>
+            <p className="text-xl font-bold text-[#1c3f60]">{horarioPico ?? "—"}</p>
           </div>
         </div>
 
@@ -201,7 +205,7 @@ useEffect(() => {
           Atualizado em: {ultimaAtualizacao}
         </p>
 
-        {/* ===================== GRÁFICO LINHA ===================== */}
+        {/* Gráfico linha */}
         <div className="mt-10">
           <h2 className="text-lg font-bold mb-3" style={{ color: "#1c3f60" }}>
             Ocupação ao Longo do Tempo
@@ -216,7 +220,7 @@ useEffect(() => {
           />
         </div>
 
-        {/* ===================== GRÁFICO BARRAS ===================== */}
+        {/* Gráfico barras */}
         <div className="mt-12">
           <h2 className="text-lg font-bold mb-3" style={{ color: "#1c3f60" }}>
             Movimento por Hora
@@ -231,7 +235,7 @@ useEffect(() => {
           />
         </div>
 
-        {/* ===================== HEATMAP ===================== */}
+        {/* Heatmap */}
         <div className="mt-12">
           <h2 className="text-lg font-bold mb-4" style={{ color: "#1c3f60" }}>
             Heatmap de Movimento

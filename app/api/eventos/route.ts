@@ -1,84 +1,114 @@
 import { NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-const FILE_NAME = "eventos.json";
+// ================================
+//     CONEXÃO COM SUPABASE
+// ================================
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-// ===================================================
-// FUNÇÃO PARA CARREGAR OS EVENTOS
-// ===================================================
-async function loadEventos() {
-  try {
-    const arquivos = await list({ prefix: "" });
-
-    const existente = arquivos.blobs.find(
-      (b) => b.pathname === FILE_NAME
-    );
-
-    if (!existente) return [];
-
-    const res = await fetch(existente.url, { cache: "no-store" });
-    return await res.json();
-  } catch (e) {
-    console.error("ERRO loadEventos:", e);
-    return [];
-  }
-}
-
-// ===================================================
-// GET
-// ===================================================
+// ================================
+//     GET  → Retorna o histórico
+// ================================
 export async function GET() {
-  const eventos = await loadEventos();
-  return NextResponse.json(eventos, {
-    headers: { "Access-Control-Allow-Origin": "*" },
-  });
-}
-
-// ===================================================
-// POST
-// ===================================================
-export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const eventos = await loadEventos();
+    const { data: logs, error } = await supabase
+      .from("contador_logs")
+      .select("*")
+      .order("criado_em", { ascending: false });
 
-    eventos.push({
-      tipo: body.tipo,
-      sensor: body.sensor,
-      contador: body.contador,
-      ts: Date.now(),
+    if (error) {
+      console.error("GET ERROR:", error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(logs, {
+      headers: { "Access-Control-Allow-Origin": "*" },
     });
-
-    await put(
-      FILE_NAME,
-      JSON.stringify(eventos, null, 2),
-      {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
-      }
-    );
-
+  } catch (e: any) {
     return NextResponse.json(
-      { ok: true },
-      { headers: { "Access-Control-Allow-Origin": "*" } }
-    );
-
-  } catch (e) {
-    console.error("PUT ERROR:", e);
-    return NextResponse.json(
-      { error: "Erro ao salvar eventos" },
+      { error: e.message },
       { status: 500 }
     );
   }
 }
 
-// ===================================================
-// OPTIONS
-// ===================================================
-export function OPTIONS(request: Request) {
+// ================================
+//     POST → Salva evento + atualiza contador
+// ================================
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const tipo = body.tipo;      // "ENTRADA" ou "SAIDA"
+    const sensor = body.sensor;  // esq / dir / etc (se quiser)
+    const contador = Number(body.contador);
+
+    if (!tipo || isNaN(contador)) {
+      return NextResponse.json(
+        { error: "Dados inválidos no body" },
+        { status: 400 }
+      );
+    }
+
+    // 1) Atualiza contador atual
+    const { error: updateError } = await supabase
+      .from("contador_estado")
+      .update({
+        total: contador,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+
+    if (updateError) {
+      console.error("UPDATE ERROR:", updateError);
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500 }
+      );
+    }
+
+    // 2) Salva no histórico
+    const { error: logError } = await supabase
+      .from("contador_logs")
+      .insert({
+        movimento: tipo,  // renomeei para movimento porque é como a tabela está
+        valor: contador,
+        sensor: sensor ?? null,
+      });
+
+    if (logError) {
+      console.error("LOG ERROR:", logError);
+      return NextResponse.json(
+        { error: logError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "Access-Control-Allow-Origin": "*" } }
+    );
+  } catch (err: any) {
+    console.error("POST ERROR:", err);
+    return NextResponse.json(
+      { error: err.message || "Erro desconhecido" },
+      { status: 500 }
+    );
+  }
+}
+
+// ================================
+//     OPTIONS (CORS)
+// ================================
+export function OPTIONS() {
   return NextResponse.json(
     {},
     {

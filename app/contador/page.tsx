@@ -8,39 +8,51 @@ export default function ContadorPage() {
   const [status, setStatus] = useState("offline");
   const [animate, setAnimate] = useState(false);
 
-  // Inicia animação
+  // -----------------------------
+  // Animação inicial
+  // -----------------------------
   useEffect(() => {
-    setTimeout(() => setAnimate(true), 100);
+    const timer = setTimeout(() => setAnimate(true), 150);
+    return () => clearTimeout(timer);
   }, []);
 
-
-// Atualização do contador REAL (busca o valor do /api/contador)
-useEffect(() => {
-  async function atualizar() {
-    try {
-      const r = await fetch("/api/contador");
-      const data = await r.json();
-      setContador(data.pessoas ?? 0);
-    } catch {
-      setContador(0);
-    }
-  }
-
-  atualizar();
-  const interval = setInterval(atualizar, 1500);
-  return () => clearInterval(interval);
-}, []);
-
-  // Status do ESP32
+  // -----------------------------
+  // Atualiza contador real
+  // -----------------------------
   useEffect(() => {
-    const interval = setInterval(async () => {
+    async function atualizar() {
       try {
-        const r = await fetch("/api/status");
+        const r = await fetch("/api/contador", { cache: "no-store" });
+        if (!r.ok) throw new Error("Falha");
+
+        const data = await r.json();
+        setContador(data.pessoas ?? 0);
+      } catch {
+        setContador(0);
+      }
+    }
+
+    atualizar();
+    const interval = setInterval(atualizar, 1200);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // -----------------------------
+  // Verifica status do ESP32
+  // -----------------------------
+  useEffect(() => {
+    async function ping() {
+      try {
+        const r = await fetch("/api/status", { cache: "no-store" });
         setStatus(r.ok ? "online" : "offline");
       } catch {
         setStatus("offline");
       }
-    }, 3000);
+    }
+
+    ping();
+    const interval = setInterval(ping, 3000);
 
     return () => clearInterval(interval);
   }, []);
@@ -50,7 +62,7 @@ useEffect(() => {
       className="min-h-screen flex flex-col items-center justify-center pb-32 px-6"
       style={{ backgroundColor: "#f3f6fa" }}
     >
-      {/* ANIMAÇÃO DO CARD */}
+      {/* CARD CENTRAL */}
       <div
         className="w-full max-w-lg rounded-3xl shadow-2xl text-center transition-all"
         style={{
@@ -58,9 +70,9 @@ useEffect(() => {
           backgroundColor: "#ffffff",
           border: "1px solid #e8ecf2",
           opacity: animate ? 1 : 0,
-          transform: animate ? "translateY(0px)" : "translateY(80px)",
+          transform: animate ? "translateY(0px)" : "translateY(60px)",
           transition:
-            "opacity 1.55s ease, transform 2.55s cubic-bezier(0.16, 1, 0.3, 1)",
+            "opacity 1.2s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         {/* TÍTULO */}
@@ -86,7 +98,7 @@ useEffect(() => {
           ESP32: {status}
         </p>
 
-        {/* CAIXA DO CONTADOR */}
+        {/* VALOR DO CONTADOR */}
         <div
           className="rounded-2xl shadow-md flex flex-col items-center justify-center"
           style={{
@@ -135,13 +147,13 @@ useEffect(() => {
         </Link>
       </div>
 
-      {/* NAVBAR MOBILE */}
+      {/* NAVBAR */}
       <nav
         className="fixed bottom-0 left-0 right-0 py-3 flex justify-around items-center"
         style={{
           backgroundColor: "#ffffff",
           borderTop: "1px solid #d7dce2",
-          boxShadow: "0 -6px 20px rgba(0,0,0,0.15)",
+          boxShadow: "0 -6px 18px rgba(0,0,0,0.1)",
         }}
       >
         <Link href="/" className="flex flex-col items-center">
@@ -157,7 +169,10 @@ useEffect(() => {
           <svg width="26" height="26" fill="#1c3f60" viewBox="0 0 24 24">
             <path d="M12 7a5 5 0 1 1-4.546 2.916l1.843.793A3 3 0 1 0 12 9V7z" />
           </svg>
-          <span className="text-xs" style={{ color: "#1c3f60", fontWeight: "700" }}>
+          <span
+            className="text-xs"
+            style={{ color: "#1c3f60", fontWeight: "700" }}
+          >
             Contador
           </span>
         </Link>

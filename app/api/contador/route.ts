@@ -1,52 +1,49 @@
 import { NextResponse } from "next/server";
-import { put, list } from "@vercel/blob";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-const FILE_NAME = "contador.json";
-
+// --------------- CORS ----------------
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
 };
 
-// ===============================
-// OPTIONS (CORS)
-// ===============================
+// --------------- SUPABASE ---------------
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// --------------- OPTIONS ----------------
 export function OPTIONS() {
   return NextResponse.json({}, { headers: CORS });
 }
 
-// ===============================
-// LER CONTADOR DO BLOB
-// ===============================
-async function loadContador() {
-  try {
-    const arquivos = await list({ prefix: "" });
-
-    const existente = arquivos.blobs.find(
-      (b) => b.pathname === FILE_NAME
-    );
-
-    if (!existente) return { pessoas: 0 };
-
-    const res = await fetch(existente.url, { cache: "no-store" });
-    return await res.json();
-  } catch (e) {
-    console.error("ERRO loadContador:", e);
-    return { pessoas: 0 };
-  }
-}
-
-// ===============================
-// GET – retorna { pessoas: number }
-// ===============================
+// --------------- GET ----------------
+// Retorna apenas:  { pessoas: X }
 export async function GET() {
   try {
-    const data = await loadContador();
-    return NextResponse.json(data, { headers: CORS });
-  } catch (e) {
+    const { data, error } = await supabase
+      .from("contador_estado")
+      .select("total")
+      .eq("id", 1)
+      .single();
+
+    if (error) {
+      console.error("GET contador error:", error);
+      return NextResponse.json(
+        { error: "Erro ao ler contador" },
+        { status: 500, headers: CORS }
+      );
+    }
+
+    return NextResponse.json(
+      { pessoas: data.total },
+      { headers: CORS }
+    );
+  } catch (e: any) {
     console.error("GET ERROR:", e);
     return NextResponse.json(
       { error: "Erro ao ler contador" },
@@ -55,30 +52,35 @@ export async function GET() {
   }
 }
 
-// ===============================
-// POST – salva novo valor de pessoas
-// ===============================
+// --------------- POST ----------------
+// Salva manualmente: { pessoas: 12 }
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const pessoas = Number(body.pessoas || 0);
 
-    await put(
-      FILE_NAME,
-      JSON.stringify({ pessoas }, null, 2),
-      {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false, // 👈 ESSENCIAL para sobrescrever sempre o mesmo arquivo
-      }
-    );
+    const { error } = await supabase
+      .from("contador_estado")
+      .update({
+        total: pessoas,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+
+    if (error) {
+      console.error("POST contador error:", error);
+      return NextResponse.json(
+        { error: "Erro ao salvar contador" },
+        { status: 500, headers: CORS }
+      );
+    }
 
     return NextResponse.json(
       { ok: true, pessoas },
       { headers: CORS }
     );
-  } catch (e) {
-    console.error("PUT ERROR:", e);
+  } catch (e: any) {
+    console.error("POST ERROR:", e);
     return NextResponse.json(
       { error: "Erro ao salvar contador" },
       { status: 500, headers: CORS }

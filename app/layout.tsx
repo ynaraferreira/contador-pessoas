@@ -48,12 +48,6 @@ export default function RootLayout({
               </Link>
             </div>
 
-            <Link
-              className="ml-auto text-red-400 hover:text-red-300 font-medium"
-              href="/logout"
-            >
-              Sair
-            </Link>
           </div>
         </nav>
 
