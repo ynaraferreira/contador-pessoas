@@ -15,7 +15,6 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// Carrega contador
 async function loadContador() {
   const arquivos = await list({ prefix: "" });
 
@@ -46,14 +45,14 @@ export async function POST(req: Request) {
 
     await put(FILE_NAME, JSON.stringify({ pessoas }, null, 2), {
       access: "public",
-      contentType: "application/json",
-      cacheControl: "no-cache", // *** IMPORTANTE ***
+      contentType: "application/json"
     });
 
     return NextResponse.json(
       { ok: true, pessoas },
       { headers: corsHeaders }
     );
+
   } catch (e) {
     console.error("PUT ERROR:", e);
     return NextResponse.json(
