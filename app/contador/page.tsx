@@ -13,28 +13,23 @@ export default function ContadorPage() {
     setTimeout(() => setAnimate(true), 100);
   }, []);
 
-  // Atualização do contador REAL (busca o último evento salvo)
-  useEffect(() => {
-    async function atualizar() {
-      try {
-        const r = await fetch("/api/eventos");
-        const eventos = await r.json();
 
-        if (Array.isArray(eventos) && eventos.length > 0) {
-          const ultimo = eventos[eventos.length - 1];
-          setContador(ultimo.contador ?? 0);
-        } else {
-          setContador(0);
-        }
-      } catch {
-        setContador(0);
-      }
+// Atualização do contador REAL (busca o valor do /api/contador)
+useEffect(() => {
+  async function atualizar() {
+    try {
+      const r = await fetch("/api/contador");
+      const data = await r.json();
+      setContador(data.pessoas ?? 0);
+    } catch {
+      setContador(0);
     }
+  }
 
-    atualizar();
-    const interval = setInterval(atualizar, 1500);
-    return () => clearInterval(interval);
-  }, []);
+  atualizar();
+  const interval = setInterval(atualizar, 1500);
+  return () => clearInterval(interval);
+}, []);
 
   // Status do ESP32
   useEffect(() => {
