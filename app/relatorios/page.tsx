@@ -13,6 +13,7 @@ import {
   Tooltip,
   Filler,
 } from "chart.js";
+
 import { Line, Bar } from "react-chartjs-2";
 
 ChartJS.register(
@@ -29,30 +30,60 @@ type Evento = {
   movimento: "ENTRADA" | "SAIDA";
   sensor: string | null;
   valor: number;
-  criado_em: string; // ISO timestamp
+  criado_em: string;
 };
 
 export default function RelatoriosPage() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [animate, setAnimate] = useState(false);
 
+  const [status, setStatus] = useState("offline");
   const [totalEntradas, setTotalEntradas] = useState(0);
   const [totalSaidas, setTotalSaidas] = useState(0);
   const [ocupacaoMax, setOcupacaoMax] = useState(0);
   const [horarioPico, setHorarioPico] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>("—");
 
-  // ------------------------------
-  // Animação inicial
-  // ------------------------------
+  // FILTRO
+  const [dataInicio, setDataInicio] = useState<string>("");
+  const [dataFim, setDataFim] = useState<string>("");
+
+  // ---------------------------
+  // ANIMAÇÃO INICIAL
+  // ---------------------------
   useEffect(() => {
     const t = setTimeout(() => setAnimate(true), 100);
     return () => clearTimeout(t);
   }, []);
 
-  // ------------------------------
-  // BUSCA OS EVENTOS (historico)
-  // ------------------------------
+  // ---------------------------
+  // STATUS DO ESP32
+  // ---------------------------
+ useEffect(() => {
+  async function ping() {
+    try {
+      const r = await fetch("/api/status", { cache: "no-store" });
+      if (!r.ok) {
+        setStatus("offline");
+        return;
+      }
+
+      const data = await r.json();
+      setStatus(data.status === "online" ? "online" : "offline");
+    } catch {
+      setStatus("offline");
+    }
+  }
+
+  ping();
+  const interval = setInterval(ping, 3500);
+  return () => clearInterval(interval);
+}, []);
+
+
+  // ---------------------------
+  // BUSCA EVENTOS DO SUPABASE
+  // ---------------------------
   useEffect(() => {
     async function load() {
       const res = await fetch("/api/eventos", { cache: "no-store" });
@@ -61,44 +92,72 @@ export default function RelatoriosPage() {
       setEventos(data);
 
       if (data.length > 0) {
-        const last = new Date(data[0].criado_em);
-        setUltimaAtualizacao(last.toLocaleString("pt-BR"));
+        const d = new Date(data[0].criado_em);
+        setUltimaAtualizacao(d.toLocaleString("pt-BR"));
       }
-
-      // KPIs
-      const entradas = data.filter((e) => e.movimento === "ENTRADA").length;
-      const saidas = data.filter((e) => e.movimento === "SAIDA").length;
-
-      setTotalEntradas(entradas);
-      setTotalSaidas(saidas);
-
-      // Ocupação máxima histórica
-      const maxOcup = Math.max(...data.map((e) => e.valor), 0);
-      setOcupacaoMax(maxOcup);
-
-      // Horário com mais movimento
-      const grupos: Record<string, number> = {};
-      data.forEach((e) => {
-        const h = new Date(e.criado_em).getHours();
-        grupos[h] = (grupos[h] || 0) + 1;
-      });
-
-      const pico = Object.entries(grupos).sort((a, b) => b[1] - a[1])[0];
-      setHorarioPico(pico ? pico[0] + "h" : null);
     }
 
     load();
   }, []);
 
-  // ------------------------------
-  // GRÁFICO DE LINHA (OCUPAÇÃO)
-  // ------------------------------
+  // ---------------------------
+  // FILTRAGEM POR DATA
+  // ---------------------------
+  const eventosFiltrados = eventos.filter((e) => {
+    if (!dataInicio && !dataFim) return true;
+
+    const ts = new Date(e.criado_em).getTime();
+    const ini = dataInicio
+      ? new Date(dataInicio + "T00:00:00").getTime()
+      : -Infinity;
+    const fim = dataFim
+      ? new Date(dataFim + "T23:59:59").getTime()
+      : Infinity;
+
+    return ts >= ini && ts <= fim;
+  });
+
+  // ---------------------------
+  // KPIs
+  // ---------------------------
+  useEffect(() => {
+    const entradas = eventosFiltrados.filter(
+      (e) => e.movimento === "ENTRADA"
+    ).length;
+
+    const saidas = eventosFiltrados.filter(
+      (e) => e.movimento === "SAIDA"
+    ).length;
+
+    setTotalEntradas(entradas);
+    setTotalSaidas(saidas);
+    setOcupacaoMax(Math.max(...eventosFiltrados.map((e) => e.valor), 0));
+
+    const grupos: Record<string, number> = {};
+    eventosFiltrados.forEach((e) => {
+      const h = new Date(e.criado_em).getHours();
+      grupos[h] = (grupos[h] || 0) + 1;
+    });
+
+    const pico = Object.entries(grupos).sort((a, b) => b[1] - a[1])[0];
+    setHorarioPico(pico ? pico[0] + "h" : null);
+  }, [eventosFiltrados]);
+
+  // ---------------------------
+  // GRÁFICOS
+  // ---------------------------
+
   const lineData = {
-    labels: eventos.map(() => ""),
+    labels: eventosFiltrados.map((e) =>
+      new Date(e.criado_em).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    ),
     datasets: [
       {
         label: "Ocupação",
-        data: eventos.map((e) => e.valor),
+        data: eventosFiltrados.map((e) => e.valor),
         borderColor: "#1c3f60",
         backgroundColor: "rgba(28,63,96,0.15)",
         fill: true,
@@ -107,18 +166,17 @@ export default function RelatoriosPage() {
     ],
   };
 
-  // ------------------------------
-  // GRÁFICO DE BARRAS — MOVIMENTO POR HORA
-  // ------------------------------
   const barrasPorHora = (() => {
     const horas: Record<number, number> = {};
 
-    eventos.forEach((e) => {
+    eventosFiltrados.forEach((e) => {
       const h = new Date(e.criado_em).getHours();
       horas[h] = (horas[h] || 0) + 1;
     });
 
-    const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}h`);
+    const labels = Array.from({ length: 24 }, (_, i) =>
+      `${String(i).padStart(2, "0")}h`
+    );
     const values = labels.map((_, i) => horas[i] || 0);
 
     return {
@@ -133,12 +191,9 @@ export default function RelatoriosPage() {
     };
   })();
 
-  // ------------------------------
-  // HEATMAP POR HORA
-  // ------------------------------
   const heatmapGrid = (() => {
     const horas: Record<string, number> = {};
-    eventos.forEach((e) => {
+    eventosFiltrados.forEach((e) => {
       const h = String(new Date(e.criado_em).getHours()).padStart(2, "0");
       horas[h] = (horas[h] || 0) + 1;
     });
@@ -151,17 +206,66 @@ export default function RelatoriosPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col pb-28 px-6"
+      className="min-h-screen flex flex-col pb-28"
       style={{ backgroundColor: "#f3f6fa" }}
     >
+{/* LOGO SUPERIOR */}
+<div
+  className="w-full flex justify-between items-center px-4 pt-5 pb-3"
+  style={{
+    backgroundColor: "#f3f6fa", padding: "18px 10px"
+    
+  }}
+>
+  {/* Logo */}
+  <div
+    style={{
+      backgroundColor: "#1c3f60",
+      padding: "2px 6px",
+      borderRadius: "14px",
+      boxShadow: "0 6px 14px rgba(0,0,0,0.18)",
+      display: "inline-flex",
+      justifyContent: "center",
+      alignItems: "center",
+    }}
+  >
+    <img
+      src="/img/fluxuss.png"
+      alt="Fluxus Logo"
+      style={{
+        height: "38px",
+        width: "auto",
+        objectFit: "contain",
+        display: "block",
+      }}
+    />
+  </div>
+
+  {/* STATUS */}
+  <span
+    style={{
+      fontSize: "12px",
+      fontWeight: 600,
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      color: status === "online" ? "#22c55e" : "#ef4444",
+      marginRight: "6px",
+    }}
+  >
+    <span style={{ fontSize: "11px" }}>●</span>
+    {status}
+  </span>
+</div>
+
       {/* CARD PRINCIPAL */}
       <div
-        className="w-full max-w-3xl mx-auto rounded-3xl shadow-xl transition-all"
+        className="w-full max-w-3xl mx-auto rounded-3xl shadow-xl transition-all px-6"
         style={{
           backgroundColor: "#ffffff",
           border: "1px solid #dfe6ef",
           padding: "32px 26px",
-          marginTop: "30px",
+          marginTop: "18px",
           marginBottom: "26px",
           opacity: animate ? 1 : 0,
           transform: animate ? "translateY(0px)" : "translateY(20px)",
@@ -169,16 +273,55 @@ export default function RelatoriosPage() {
             "opacity 0.55s ease, transform 0.55s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        <h1 className="text-2xl font-extrabold" style={{ color: "#1c3f60" }}>
-          Relatório de Movimentação no Ambiente
+        <h1
+          className="text-l font-extrabold"
+          style={{ color: "#1c3f60" }}
+        >
+          Relatório de Movimentação
         </h1>
 
-        <p className="mt-1 text-sm" style={{ color: "#6b7a86" }}>
-          Análise completa de ocupação, fluxo e horários de pico.
+        <p className="mt-1 text-sm" style={{ color: "#6b7a86", marginBottom: "15px" }}>
+          Análise de fluxo, ocupação e horários de pico.
         </p>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
+        {/* FILTRO DE DATA */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-8 mb-6">
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-600 mb-1">Data inicial</label>
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="px-3 py-2 rounded-md border border-gray-300 shadow-sm"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-600 mb-1">Data final</label>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="px-3 py-2 rounded-md border border-gray-300 shadow-sm"
+            />
+          </div>
+
+          {/* BOTÃO LIMPAR */}
+          <div className="flex flex-col justify-end text-xs">
+            <button
+              onClick={() => {
+                setDataFim("");
+                setDataInicio("")
+              }}
+              className="px-4 py-2 rounded-md bg-[#1c3f60] text-white font-semibold shadow"
+            >
+              Limpar filtro
+            </button>
+          </div>
+        </div>
+
+        {/* KPIs  */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
           <div className="px-4 py-3 rounded-xl shadow-sm bg-[#eef2f6] border border-[#d5dde6]">
             <p className="text-xs text-[#6b7a86]">Entradas</p>
             <p className="text-xl font-bold text-[#1c3f60]">{totalEntradas}</p>
@@ -196,31 +339,18 @@ export default function RelatoriosPage() {
 
           <div className="px-4 py-3 rounded-xl shadow-sm bg-[#eef2f6] border border-[#d5dde6]">
             <p className="text-xs text-[#6b7a86]">Pico</p>
-            <p className="text-xl font-bold text-[#1c3f60]">{horarioPico ?? "—"}</p>
+            <p className="text-xl font-bold text-[#1c3f60]">
+              {horarioPico ?? "—"}
+            </p>
           </div>
         </div>
 
-        {/* Última atualização */}
+        {/* ==================== ÚLTIMA ATUALIZAÇÃO ==================== */}
         <p className="text-xs mt-3 text-right text-[#6b7a86]">
           Atualizado em: {ultimaAtualizacao}
         </p>
 
-        {/* Gráfico linha */}
-        <div className="mt-10">
-          <h2 className="text-lg font-bold mb-3" style={{ color: "#1c3f60" }}>
-            Ocupação ao Longo do Tempo
-          </h2>
-
-          <Line
-            data={lineData}
-            options={{
-              plugins: { legend: { display: false } },
-              scales: { y: { beginAtZero: true } },
-            }}
-          />
-        </div>
-
-        {/* Gráfico barras */}
+        {/* ==================== GRÁFICO BARRAS ==================== */}
         <div className="mt-12">
           <h2 className="text-lg font-bold mb-3" style={{ color: "#1c3f60" }}>
             Movimento por Hora
@@ -235,10 +365,10 @@ export default function RelatoriosPage() {
           />
         </div>
 
-        {/* Heatmap */}
+        {/* ==================== HEATMAP ==================== */}
         <div className="mt-12">
           <h2 className="text-lg font-bold mb-4" style={{ color: "#1c3f60" }}>
-            Mapa de calor (Por hora)
+            Mapa de Calor (por hora)
           </h2>
 
           <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
@@ -263,9 +393,9 @@ export default function RelatoriosPage() {
             })}
           </div>
         </div>
-      </div>
+      </div><br></br>
 
-      {/* NAV MOBILE */}
+      {/* ==================== NAV MOBILE ==================== */}
       <nav
         className="fixed bottom-0 left-0 right-0 py-3 flex justify-around items-center"
         style={{
@@ -296,7 +426,10 @@ export default function RelatoriosPage() {
           <svg width="26" height="26" fill="#1c3f60" viewBox="0 0 24 24">
             <path d="M3 4h18v2H3V4zm0 6h18v2H3v-2zm0 6h12v2H3v-2z" />
           </svg>
-          <span className="text-xs" style={{ color: "#1c3f60", fontWeight: 700 }}>
+          <span
+            className="text-xs"
+            style={{ color: "#1c3f60", fontWeight: 700 }}
+          >
             Relatórios
           </span>
         </Link>

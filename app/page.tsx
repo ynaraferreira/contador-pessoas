@@ -23,18 +23,18 @@ export default function Home() {
         className="w-full max-w-md text-center rounded-3xl shadow-2xl"
         style={{
           backgroundColor: "#ffffff",
-          padding: "50px 40px",
+          padding: "36px 28px",
           border: "1px solid #e8ecf2",
           opacity: animate ? 1 : 0,
-          transform: animate ? "translateY(0px)" : "translateY(80px)",
+          transform: animate ? "translateY(0px)" : "translateY(60px)",
           transition:
-            "opacity 1.55s ease, transform 2.55s cubic-bezier(0.16, 1, 0.3, 1)",
+            "opacity 1.2s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         {/* LOGO */}
         <div
           style={{
-            marginBottom: "40px",
+            marginBottom: "20px", // 🔽 menos espaço entre logo e texto
             display: "flex",
             justifyContent: "center",
           }}
@@ -42,12 +42,12 @@ export default function Home() {
           <Image
             src="/img/fluxuss.png"
             alt="Logo Fluxus"
-            width={210}
-            height={210}
+            width={190}
+            height={190}
             className="object-cover rounded-2xl shadow-lg"
             style={{
-              borderRadius: "10px",
-              boxShadow: "0 12px 25px rgba(0,0,0,0.20)",
+              borderRadius: "12px",
+              boxShadow: "0 10px 22px rgba(0,0,0,0.22)",
             }}
           />
         </div>
@@ -58,7 +58,7 @@ export default function Home() {
             color: "#6b7a86",
             fontSize: "15px",
             lineHeight: "22px",
-            marginBottom: "45px",
+            marginBottom: "52px", // 🔺 mais espaço até o botão
           }}
         >
           Sistema integrado de contagem de pessoas no ambiente

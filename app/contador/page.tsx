@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function ContadorPage() {
   const [contador, setContador] = useState(0);
@@ -34,7 +35,6 @@ export default function ContadorPage() {
 
     atualizar();
     const interval = setInterval(atualizar, 1200);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -42,75 +42,107 @@ export default function ContadorPage() {
   // Verifica status do ESP32
   // -----------------------------
   useEffect(() => {
-    async function ping() {
-      try {
-        const r = await fetch("/api/status", { cache: "no-store" });
-        setStatus(r.ok ? "online" : "offline");
-      } catch {
+  async function ping() {
+    try {
+      const r = await fetch("/api/status", { cache: "no-store" });
+      if (!r.ok) {
         setStatus("offline");
+        return;
       }
+
+      const data = await r.json();
+      setStatus(data.status === "online" ? "online" : "offline");
+    } catch {
+      setStatus("offline");
     }
+  }
 
-    ping();
-    const interval = setInterval(ping, 3000);
+  ping();
+  const interval = setInterval(ping, 3500);
+  return () => clearInterval(interval);
+}, []);
 
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center pb-32 px-6"
+      className="min-h-screen flex flex-col items-center px-6 pb-24"
       style={{ backgroundColor: "#f3f6fa" }}
     >
-      {/* CARD CENTRAL */}
-      <div
-        className="w-full max-w-lg rounded-3xl shadow-2xl text-center transition-all"
+      {/* head */}
+      <header
+        className="w-full flex items-center justify-between"
         style={{
-          padding: "45px 40px",
-          backgroundColor: "#ffffff",
-          border: "1px solid #e8ecf2",
-          opacity: animate ? 1 : 0,
-          transform: animate ? "translateY(0px)" : "translateY(60px)",
-          transition:
-            "opacity 1.2s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1)",
+          padding: "18px 10px",
+          marginBottom: "25px",
         }}
       >
-        {/* TÍTULO */}
+        {/* Logo com cantos arredondados e sombra */}
+        <Image
+          src="/img/fluxuss.png"
+          alt="Fluxuss"
+          width={140}
+          height={50}
+          style={{
+            objectFit: "cover",
+            borderRadius: "14px",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
+          }}
+        />
+
+        {/* Status bem discreto e elegante */}
+        <span
+          style={{
+            fontSize: "12px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            color: status === "online" ? "#22c55e" : "#ef4444",
+          }}
+        >
+          <span style={{ fontSize: "11px" }}>●</span>
+          {status}
+        </span>
+      </header>
+
+      {/* ----------- CARD CENTRAL ----------- */}
+      <div
+        className="w-full max-w-lg rounded-3xl shadow-xl text-center transition-all"
+        style={{
+          padding: "40px 32px",
+          backgroundColor: "#ffffff",
+          border: "1px solid #e1e6ee",
+          opacity: animate ? 1 : 0,
+          transform: animate ? "translateY(0)" : "translateY(60px)",
+          transition:
+            "opacity 1.2s ease, transform 1.8s cubic-bezier(0.16,1,0.3,1)",
+          marginTop: "20px",
+        }}
+      >
         <h1
           style={{
-            fontSize: "28px",
+            fontSize: "26px",
             fontWeight: "800",
             color: "#1c3f60",
-            marginBottom: "25px",
+            marginBottom: "18px",
           }}
         >
           Contador de Pessoas
         </h1>
 
-        {/* STATUS DO ESP32 */}
-        <p
-          style={{
-            color: status === "online" ? "#22c55e" : "#ef4444",
-            fontSize: "13px",
-            marginBottom: "25px",
-          }}
-        >
-          ESP32: {status}
-        </p>
-
-        {/* VALOR DO CONTADOR */}
+        {/* Valor do contador */}
         <div
           className="rounded-2xl shadow-md flex flex-col items-center justify-center"
           style={{
             backgroundColor: "#eef2f6",
-            padding: "28px 10px",
+            padding: "30px 10px",
             border: "1px solid #d8dde4",
             marginBottom: "30px",
           }}
         >
           <span
             style={{
-              fontSize: "46px",
+              fontSize: "56px",
               fontWeight: "800",
               color: "#1c3f60",
             }}
@@ -121,15 +153,15 @@ export default function ContadorPage() {
           <p
             style={{
               color: "#6b7a86",
-              marginTop: "6px",
-              fontSize: "14px",
+              marginTop: "10px",
+              fontSize: "15px",
             }}
           >
             Pessoas no ambiente
           </p>
         </div>
 
-        {/* BOTÃO */}
+        {/* Botão */}
         <Link
           href="/relatorios"
           style={{
@@ -147,7 +179,7 @@ export default function ContadorPage() {
         </Link>
       </div>
 
-      {/* NAVBAR */}
+      {/* ----------- NAVBAR INFERIOR ----------- */}
       <nav
         className="fixed bottom-0 left-0 right-0 py-3 flex justify-around items-center"
         style={{
