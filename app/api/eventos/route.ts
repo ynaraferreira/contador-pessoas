@@ -68,19 +68,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1) Atualiza contador atual
-    const { error: updateError } = await supabase
+    // 1) Atualiza contador atual (cria se não existir)
+    const { error: upsertError } = await supabase
       .from("contador_estado")
-      .update({
+      .upsert({
+        id: 1,
         total: contador,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1);
+      });
 
-    if (updateError) {
-      console.error("UPDATE ERROR:", updateError);
+    if (upsertError) {
+      console.error("UPSERT contador_estado ERROR:", upsertError);
       return NextResponse.json(
-        { error: updateError.message },
+        { error: upsertError.message },
         { status: 500 }
       );
     }
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
 }
 
 // ================================
-//     OPTIONS (CORS se precisar)
+//     OPTIONS (CORS)
 // ================================
 export function OPTIONS() {
   return NextResponse.json(
@@ -125,7 +125,7 @@ export function OPTIONS() {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Headers": "*",
       },
     }
   );

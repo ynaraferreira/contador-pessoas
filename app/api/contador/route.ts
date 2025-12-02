@@ -38,7 +38,7 @@ export async function GET() {
       .from("contador_estado")
       .select("total")
       .eq("id", 1)
-      .single();
+      .maybeSingle(); // <- não dá erro se não tiver linha
 
     if (error) {
       console.error("GET contador error:", error);
@@ -48,8 +48,10 @@ export async function GET() {
       );
     }
 
+    const total = data?.total ?? 0;
+
     return NextResponse.json(
-      { pessoas: data?.total ?? 0 },
+      { pessoas: total },
       { headers: CORS }
     );
   } catch (e: any) {
@@ -72,11 +74,11 @@ export async function POST(req: Request) {
 
     const { error } = await supabase
       .from("contador_estado")
-      .update({
+      .upsert({
+        id: 1,
         total: pessoas,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", 1);
+      });
 
     if (error) {
       console.error("POST contador error:", error);
