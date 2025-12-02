@@ -3,27 +3,33 @@ import { NextResponse } from "next/server";
 
 const FILE_NAME = "contador.json";
 
-async function load() {
-  const existing = (await list()).blobs.find(b => b.pathname === FILE_NAME);
-  if (!existing) return { contador: 0 };
+// Lê o arquivo do blob
+async function loadContador() {
+  const arquivos = await list();
+  const item = arquivos.blobs.find((b) => b.pathname === FILE_NAME);
 
-  const res = await fetch(existing.url);
-  return await res.json();
+  if (!item) return { pessoas: 0 };
+
+  const res = await fetch(item.url);
+  return res.json();
 }
 
+// GET → retorna o contador atual
 export async function GET() {
-  const data = await load();
+  const data = await loadContador();
   return NextResponse.json(data);
 }
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const novo = { contador: body.contador ?? 0 };
+// POST → atualiza o contador
+export async function POST(req: Request) {
+  const body = await req.json();
+  const pessoas = body.pessoas ?? 0;
 
-  await put(FILE_NAME, JSON.stringify(novo, null, 2), {
+  // Salva no blob
+  await put(FILE_NAME, JSON.stringify({ pessoas }, null, 2), {
     contentType: "application/json",
     access: "public",
   });
 
-  return NextResponse.json({ ok: true, contador: novo.contador });
+  return NextResponse.json({ ok: true, pessoas });
 }
