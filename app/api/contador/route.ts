@@ -5,19 +5,33 @@ export const runtime = "nodejs";
 
 const FILE_NAME = "contador.json";
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+};
+
 // ===============================
-// LER ARQUIVO DO BLOB
+// OPTIONS (CORS)
+// ===============================
+export function OPTIONS() {
+  return NextResponse.json({}, { headers: CORS });
+}
+
+// ===============================
+// LER CONTADOR DO BLOB
 // ===============================
 async function loadContador() {
   try {
     const arquivos = await list({ prefix: "" });
 
-    // 🔥 CORREÇÃO FINAL — usar pathname
-    const item = arquivos.blobs.find((b) => b.pathname === FILE_NAME);
+    const existente = arquivos.blobs.find(
+      (b) => b.pathname === FILE_NAME
+    );
 
-    if (!item) return { pessoas: 0 };
+    if (!existente) return { pessoas: 0 };
 
-    const res = await fetch(item.url, { cache: "no-store" });
+    const res = await fetch(existente.url, { cache: "no-store" });
     return await res.json();
   } catch (e) {
     console.error("ERRO loadContador:", e);
@@ -26,17 +40,23 @@ async function loadContador() {
 }
 
 // ===============================
-// GET
+// GET – retorna { pessoas: number }
 // ===============================
 export async function GET() {
-  const data = await loadContador();
-  return NextResponse.json(data, {
-    headers: { "Access-Control-Allow-Origin": "*" },
-  });
+  try {
+    const data = await loadContador();
+    return NextResponse.json(data, { headers: CORS });
+  } catch (e) {
+    console.error("GET ERROR:", e);
+    return NextResponse.json(
+      { error: "Erro ao ler contador" },
+      { status: 500, headers: CORS }
+    );
+  }
 }
 
 // ===============================
-// POST
+// POST – salva novo valor de pessoas
 // ===============================
 export async function POST(req: Request) {
   try {
@@ -49,36 +69,19 @@ export async function POST(req: Request) {
       {
         access: "public",
         contentType: "application/json",
-        addRandomSuffix: false, // 🔥 ESSENCIAL
+        addRandomSuffix: false, // 👈 ESSENCIAL para sobrescrever sempre o mesmo arquivo
       }
     );
 
     return NextResponse.json(
       { ok: true, pessoas },
-      { headers: { "Access-Control-Allow-Origin": "*" } }
+      { headers: CORS }
     );
-
   } catch (e) {
     console.error("PUT ERROR:", e);
     return NextResponse.json(
       { error: "Erro ao salvar contador" },
-      { status: 500 }
+      { status: 500, headers: CORS }
     );
   }
-}
-
-// ===============================
-// OPTIONS (CORS)
-// ===============================
-export function OPTIONS() {
-  return NextResponse.json(
-    {},
-    {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-      },
-    }
-  );
 }
