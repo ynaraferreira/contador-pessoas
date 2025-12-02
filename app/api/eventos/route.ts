@@ -3,71 +3,73 @@ import { put, list } from "@vercel/blob";
 
 export const runtime = "nodejs";
 
-const FILE_NAME = "eventos.json";
+const FILE_NAME = "contador.json";
 
-async function loadEventos() {
+// ===============================
+// LER ARQUIVO DO BLOB
+// ===============================
+async function loadContador() {
   try {
     const arquivos = await list({ prefix: "" });
 
-    const existente = arquivos.blobs.find(
-      (b) => b.pathname === FILE_NAME
-    );
+    // 🔥 CORREÇÃO FINAL — usar pathname
+    const item = arquivos.blobs.find((b) => b.pathname === FILE_NAME);
 
-    if (!existente) return [];
+    if (!item) return { pessoas: 0 };
 
-    const res = await fetch(existente.url, {
-      cache: "no-store",
-    });
-
+    const res = await fetch(item.url, { cache: "no-store" });
     return await res.json();
   } catch (e) {
-    console.error("ERRO loadEventos:", e);
-    return [];
+    console.error("ERRO loadContador:", e);
+    return { pessoas: 0 };
   }
 }
 
+// ===============================
+// GET
+// ===============================
 export async function GET() {
-  const eventos = await loadEventos();
-  return NextResponse.json(eventos, {
+  const data = await loadContador();
+  return NextResponse.json(data, {
     headers: { "Access-Control-Allow-Origin": "*" },
   });
 }
 
-export async function POST(request) {
+// ===============================
+// POST
+// ===============================
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const eventos = await loadEventos();
-
-    eventos.push({
-      tipo: body.tipo,
-      sensor: body.sensor,
-      contador: body.contador,
-      ts: Date.now(),
-    });
+    const body = await req.json();
+    const pessoas = Number(body.pessoas || 0);
 
     await put(
       FILE_NAME,
-      JSON.stringify(eventos, null, 2),
+      JSON.stringify({ pessoas }, null, 2),
       {
         access: "public",
         contentType: "application/json",
-        addRandomSuffix: false, // <- ESSENCIAL
+        addRandomSuffix: false, // 🔥 ESSENCIAL
       }
     );
 
-    return NextResponse.json({ ok: true }, {
-      headers: { "Access-Control-Allow-Origin": "*" },
-    });
+    return NextResponse.json(
+      { ok: true, pessoas },
+      { headers: { "Access-Control-Allow-Origin": "*" } }
+    );
 
   } catch (e) {
     console.error("PUT ERROR:", e);
     return NextResponse.json(
-      { error: "Erro ao salvar eventos" },
+      { error: "Erro ao salvar contador" },
       { status: 500 }
     );
   }
 }
 
+// ===============================
+// OPTIONS (CORS)
+// ===============================
 export function OPTIONS() {
   return NextResponse.json(
     {},
