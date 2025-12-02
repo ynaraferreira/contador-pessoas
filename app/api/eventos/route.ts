@@ -18,10 +18,7 @@ async function loadEventos() {
 
     if (!existente) return [];
 
-    const res = await fetch(existente.url, {
-      cache: "no-store",
-    });
-
+    const res = await fetch(existente.url, { cache: "no-store" });
     return await res.json();
   } catch (e) {
     console.error("ERRO loadEventos:", e);
@@ -42,12 +39,11 @@ export async function GET() {
 // ===================================================
 // POST
 // ===================================================
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const eventos = await loadEventos();
 
-    // Adiciona novo evento
     eventos.push({
       tipo: body.tipo,
       sensor: body.sensor,
@@ -55,23 +51,21 @@ export async function POST(request) {
       ts: Date.now(),
     });
 
-    // Salva no blob SEM criar novo arquivo toda vez
     await put(
       FILE_NAME,
       JSON.stringify(eventos, null, 2),
       {
         access: "public",
         contentType: "application/json",
-        addRandomSuffix: false, // <--- ESSENCIAL
+        addRandomSuffix: false,
       }
     );
 
     return NextResponse.json(
       { ok: true },
-      {
-        headers: { "Access-Control-Allow-Origin": "*" },
-      }
+      { headers: { "Access-Control-Allow-Origin": "*" } }
     );
+
   } catch (e) {
     console.error("PUT ERROR:", e);
     return NextResponse.json(
@@ -82,9 +76,9 @@ export async function POST(request) {
 }
 
 // ===================================================
-// OPTIONS (CORS)
+// OPTIONS
 // ===================================================
-export function OPTIONS() {
+export function OPTIONS(request: Request) {
   return NextResponse.json(
     {},
     {
