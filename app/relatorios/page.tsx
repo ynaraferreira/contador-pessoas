@@ -170,7 +170,7 @@ export default function RelatoriosPage() {
         }}
       >
         <h1 className="text-2xl font-extrabold" style={{ color: "#1c3f60" }}>
-          Dashboard Premium
+          Relatório de Movimentação no Ambiente
         </h1>
 
         <p className="mt-1 text-sm" style={{ color: "#6b7a86" }}>
@@ -238,7 +238,7 @@ export default function RelatoriosPage() {
         {/* Heatmap */}
         <div className="mt-12">
           <h2 className="text-lg font-bold mb-4" style={{ color: "#1c3f60" }}>
-            Heatmap de Movimento
+            Mapa de calor (Por hora)
           </h2>
 
           <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
