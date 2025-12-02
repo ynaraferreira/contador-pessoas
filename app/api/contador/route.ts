@@ -43,14 +43,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const pessoas = Number(body.pessoas || 0);
 
-    await put(
-      FILE_NAME,
-      JSON.stringify({ pessoas }, null, 2),
-      {
-        access: "public-read",   // <<<<<< AQUI ESTÁ O FIX
-        contentType: "application/json",
-      }
-    );
+    await put(FILE_NAME, JSON.stringify({ pessoas }, null, 2), {
+      access: "public",
+      contentType: "application/json"
+    });
 
     return NextResponse.json(
       { ok: true, pessoas },
