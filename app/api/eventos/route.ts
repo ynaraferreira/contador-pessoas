@@ -3,19 +3,26 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-// ================================
-//     CONEXÃO COM SUPABASE
-// ================================
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// --------------- HELPER: SUPABASE ---------------
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("ERRO: Variáveis de ambiente do Supabase não configuradas.");
+    throw new Error("Supabase env vars ausentes (URL ou KEY).");
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // ================================
 //     GET  → Retorna o histórico
 // ================================
 export async function GET() {
   try {
+    const supabase = getSupabaseClient();
+
     const { data: logs, error } = await supabase
       .from("contador_logs")
       .select("*")
@@ -33,8 +40,9 @@ export async function GET() {
       headers: { "Access-Control-Allow-Origin": "*" },
     });
   } catch (e: any) {
+    console.error("GET eventos ERROR:", e);
     return NextResponse.json(
-      { error: e.message },
+      { error: e.message || "Erro ao buscar eventos" },
       { status: 500 }
     );
   }
@@ -45,10 +53,12 @@ export async function GET() {
 // ================================
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseClient();
+
     const body = await req.json();
 
     const tipo = body.tipo;      // "ENTRADA" ou "SAIDA"
-    const sensor = body.sensor;  // esq / dir / etc (se quiser)
+    const sensor = body.sensor;  // esq->dir / dir->esq
     const contador = Number(body.contador);
 
     if (!tipo || isNaN(contador)) {
@@ -79,7 +89,7 @@ export async function POST(req: Request) {
     const { error: logError } = await supabase
       .from("contador_logs")
       .insert({
-        movimento: tipo,  // renomeei para movimento porque é como a tabela está
+        movimento: tipo,
         valor: contador,
         sensor: sensor ?? null,
       });
@@ -97,7 +107,7 @@ export async function POST(req: Request) {
       { headers: { "Access-Control-Allow-Origin": "*" } }
     );
   } catch (err: any) {
-    console.error("POST ERROR:", err);
+    console.error("POST eventos ERROR:", err);
     return NextResponse.json(
       { error: err.message || "Erro desconhecido" },
       { status: 500 }
@@ -106,7 +116,7 @@ export async function POST(req: Request) {
 }
 
 // ================================
-//     OPTIONS (CORS)
+//     OPTIONS (CORS se precisar)
 // ================================
 export function OPTIONS() {
   return NextResponse.json(
@@ -115,7 +125,7 @@ export function OPTIONS() {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "*",
+          "Access-Control-Allow-Headers": "*",
       },
     }
   );

@@ -10,11 +10,18 @@ const CORS = {
   "Access-Control-Allow-Headers": "*",
 };
 
-// --------------- SUPABASE ---------------
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// --------------- HELPER: SUPABASE ---------------
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("ERRO: Variáveis de ambiente do Supabase não configuradas.");
+    throw new Error("Supabase env vars ausentes (URL ou KEY).");
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // --------------- OPTIONS ----------------
 export function OPTIONS() {
@@ -25,6 +32,8 @@ export function OPTIONS() {
 // Retorna apenas:  { pessoas: X }
 export async function GET() {
   try {
+    const supabase = getSupabaseClient();
+
     const { data, error } = await supabase
       .from("contador_estado")
       .select("total")
@@ -40,13 +49,13 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { pessoas: data.total },
+      { pessoas: data?.total ?? 0 },
       { headers: CORS }
     );
   } catch (e: any) {
     console.error("GET ERROR:", e);
     return NextResponse.json(
-      { error: "Erro ao ler contador" },
+      { error: e.message || "Erro ao ler contador" },
       { status: 500, headers: CORS }
     );
   }
@@ -56,6 +65,8 @@ export async function GET() {
 // Salva manualmente: { pessoas: 12 }
 export async function POST(req: Request) {
   try {
+    const supabase = getSupabaseClient();
+
     const body = await req.json();
     const pessoas = Number(body.pessoas || 0);
 
@@ -82,7 +93,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     console.error("POST ERROR:", e);
     return NextResponse.json(
-      { error: "Erro ao salvar contador" },
+      { error: e.message || "Erro ao salvar contador" },
       { status: 500, headers: CORS }
     );
   }
